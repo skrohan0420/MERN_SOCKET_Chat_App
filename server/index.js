@@ -27,10 +27,31 @@ app.get("/messages", async (req, res) => {
 io.on("connection", (socket) => {
 	console.log("New client:", socket.id);
 
+	// Join a private room
+	socket.on("joinRoom", (room) => {
+		socket.join(room);
+		socket.room = room; // Save room on socket instance
+		console.log(`Client ${socket.id} joined room: ${room}`);
+	});
+
+	// Message to a room
 	socket.on("chat:message", async (msg) => {
 		const newMessage = new Message(msg);
 		await newMessage.save();
-		io.emit("chat:message", newMessage); // Broadcast to all
+		if (socket.room) {
+			io.to(socket.room).emit("chat:message", newMessage);
+		} else {
+			io.emit("chat:message", newMessage); // fallback: broadcast to all
+		}
+	});
+
+	// Typing indicator for a room
+	socket.on("typing", (username) => {
+		if (socket.room) {
+			socket.to(socket.room).emit("typing", username);
+		} else {
+			socket.broadcast.emit("typing", username);
+		}
 	});
 
 	socket.on("disconnect", () => {
